@@ -1327,12 +1327,13 @@ create_v2ray_json(){
 		case "$ss_basic_v2ray_network_security" in
 		tls)
 			local tls="{
-					\"allowInsecure\": true,
+					\"allowInsecure\": $(get_function_switch $ss_basic_allowinsecure),
 					\"serverName\": \"$ss_basic_v2ray_network_tlshost\"
 					}"
 			;;
 		xtls)
 			local xtls="{
+					\"allowInsecure\": $(get_function_switch $ss_basic_allowinsecure),
 					\"serverName\": \"$ss_basic_v2ray_network_tlshost\"
 					}"
 			local vless_flow="\"flow\": \"$ss_basic_v2ray_network_flow\","
@@ -1719,6 +1720,7 @@ create_trojan_json(){
 				  "network": "tcp",
 				  "security": "tls",
 				  "tlsSettings": {
+					"allowInsecure": $(get_function_switch $ss_basic_allowinsecure),  
                     "serverName": "$ss_basic_trojan_sni"
                 }
 				}
