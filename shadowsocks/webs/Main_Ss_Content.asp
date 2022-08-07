@@ -611,7 +611,6 @@ function verifyFields(r) {
 	showhide("v2ray_network_tlshost_basic_tr", (v2ray_on && json_off && tls_on));
 	showhide("v2ray_network_flow_basic_tr", (v2ray_on && json_off && xtls_on));
 	showhide("v2ray_network_security_basic_tr", (v2ray_on && json_off));
-	showhide("allowinsecure_basic_tr", ((tls_on || E("ss_basic_trojan_binary").value == "Trojan") && json_off));	
 	showhide("v2ray_mux_enable_basic_tr", ((trojan_on &&  E("ss_basic_trojan_binary").value == "Trojan-Go")|| (v2ray_on && json_off)));
 	showhide("v2ray_mux_concurrency_basic_tr", (((trojan_on && E("ss_basic_trojan_binary").value == "Trojan-Go") || (v2ray_on && json_off)) && E("ss_basic_v2ray_mux_enable").checked));
 	showhide("v2ray_json_basic_tr", (v2ray_on && json_on));
@@ -623,8 +622,11 @@ function verifyFields(r) {
 	// dns pannel
 	showhide("dns_plan_foreign", !koolgame_on);
 	showhide("dns_plan_foreign_game2", koolgame_on);	
+
+	showhide("allowinsecure_basic_tr", ((trojan_on && E("ss_basic_trojan_binary").value == "Trojan") || (v2ray_on && json_off && tls_on)));	
 	//node add/edit pannel
 	if (save_flag == "shadowsocks") {
+		E('allowinsecure_tr').style.display = "none";
 		showhide("ss_v2ray_plugin_support", ($("#ss_node_table_mode").val() != "3"));
 		showhide("ss_v2ray_plugin_opts_support", ($("#ss_node_table_mode").val() != "3" && $("#ss_node_table_ss_v2ray_plugin").val() != "0"));
 	}
@@ -1005,12 +1007,13 @@ function getAllConfigs() {
 		if (typeof db_ss[p + "_webtest_" + field] == "undefined") {
 			obj["webtest"] = '';
 		} else {
-			var time_total = parseFloat(db_ss[p + "_webtest_" + field].split(":")[0]).toFixed(2);
-			if (time_total == 0.00) {
-				obj["webtest"] = '<font color=#FFCC00">failed</font>';
-			} else {
-				obj["webtest"] = parseFloat(db_ss[p + "_webtest_" + field].split(":")[0]).toFixed(2) + " s";
-			}
+//			var time_total = parseFloat(db_ss[p + "_webtest_" + field].split(":")[0]).toFixed(2);
+//			if (time_total == 0.00) {
+//				obj["webtest"] = '<font color=#FFCC00">failed</font>';
+//			} else {
+//				obj["webtest"] = parseFloat(db_ss[p + "_webtest_" + field].split(":")[0]).toFixed(2) + " s";
+			obj["webtest"] = db_ss[p + "_webtest_" + field];
+//		}
 		}
 		//空值为0
 		if (typeof db_ss[p + "_use_kcp_" + field] == "undefined") {
@@ -1732,18 +1735,18 @@ function refresh_html() {
 		} else {
 			html = html + '<td style="width:40px"></td>';
 		}
-		html = html + '<td style="width:120px;text-align:left;" id="ss_node_name_' + c["node"] + '">' + c["name"] + '</td>';
+		html = html + '<td style="width:150px;text-align:left;" id="ss_node_name_' + c["node"] + '">' + c["name"] + '</td>';
 		html = html + '<td style="width:120px;text-align:left;" id="ss_node_server_' + c["node"] + '"> ' + c["server"] + '</td>';
 		html = html + '<td id="ss_node_port_' + c["node"] + '" style="width:37px;">' + c["port"] + '</td>';
 		if(!c["ping"]){
-			html = html + '<td id="ss_node_ping_' + c["node"] + '" style="width:90px;" class="ping" id="ping_test_td_' + c["node"] + '" style="text-align: center;">' + "不支持" + '</td>';
+			html = html + '<td id="ss_node_ping_' + c["node"] + '" style="width:69px;" class="ping" id="ping_test_td_' + c["node"] + '" style="text-align: center;">' + "不支持" + '</td>';
 		}else{
-			html = html + '<td id="ss_node_ping_' + c["node"] + '" style="width:90px;" class="ping" id="ping_test_td_' + c["node"] + '" style="text-align: center;">' + c["ping"] + '</td>';
+			html = html + '<td id="ss_node_ping_' + c["node"] + '" style="width:69px;" class="ping" id="ping_test_td_' + c["node"] + '" style="text-align: center;">' + c["ping"] + '</td>';
 		}
 		if (c["mode"] == 4 || c["use_kcp"] == 1) {
-			html = html + '<td id="ss_node_webtest_' + c["node"] + '" style="width:54px;color: #FFCC33" id="web_test_td_' + c["node"] + '">' + 'null' + '</td>';
+			html = html + '<td id="ss_node_webtest_' + c["node"] + '" style="width:45px;color: #FFCC33" id="web_test_td_' + c["node"] + '">' + 'null' + '</td>';
 		} else {
-			html = html + '<td id="ss_node_webtest_' + c["node"] + '" style="width:54px;" id="web_test_td_' + c["node"] + '">' + c["webtest"] + '</td>';
+			html = html + '<td id="ss_node_webtest_' + c["node"] + '" style="width:45px;" id="web_test_td_' + c["node"] + '">' + c["webtest"] + '</td>';
 		}
 		html = html + '<td style="width:33px;">'
 		html = html + '<input style="margin:-2px 0px -4px -2px;" id="dd_node_' + c["node"] + '" class="edit_btn" type="button" onclick="return edit_conf_table(this);" value="">'
@@ -3196,36 +3199,20 @@ function save_online_nodes(action) {
 	push_data(dbus);
 }
 
-function v2ray_binary_update(){
+function ss_binary_update(binary_update){
 	db_ss["ss_basic_action"] = "15";
 	var dbus = {};
-	dbus["SystemCmd"] = "ss_v2ray.sh";
+	dbus["SystemCmd"] = "ss_v2ray_xray.sh";
+	dbus["ss_binary_update"] = binary_update;
 	dbus["action_mode"] = " Refresh ";
 	dbus["current_page"] = "Main_Ss_Content.asp";
+	if (binary_update == 1) {
+		varinfo= '<li>为了避免不必要的问题，请保证路由器和服务器上的V2Ray版本一致！</li><br /><li>你确定要更新V2Ray二进制吗？</li>'
+	} else if (binary_update == 2) {
+		varinfo= '<li>为了避免不必要的问题，请保证路由器和服务器上的Xray版本一致！</li><br /><li>你确定要更新Xray二进制吗？</li>'
+	} 
 	require(['/res/layer/layer.js'], function(layer) {
-		layer.confirm('<li>为了避免不必要的问题，请保证路由器和服务器上的v2ray版本一致！</li><br /><li>你确定要更新v2ray二进制吗？</li>', {
-			shade: 0.8,
-		}, function(index) {
-			$("#log_content3").attr("rows", "20");
-			push_data(dbus);
-			layer.close(index);
-			return true;
-			//save_online_nodes(action);
-		}, function(index) {
-			layer.close(index);
-			return false;
-		});
-	});
-}
-
-function xray_binary_update(){
-	db_ss["ss_basic_action"] = "15";
-	var dbus = {};
-	dbus["SystemCmd"] = "ss_xray.sh";
-	dbus["action_mode"] = " Refresh ";
-	dbus["current_page"] = "Main_Ss_Content.asp";
-	require(['/res/layer/layer.js'], function(layer) {
-		layer.confirm('<li>为了避免不必要的问题，请保证路由器和服务器上的Xray版本一致！</li><br /><li>你确定要更新Xray二进制吗？</li>', {
+		layer.confirm(varinfo, {
 			shade: 0.8,
 		}, function(index) {
 			$("#log_content3").attr("rows", "20");
@@ -3666,16 +3653,17 @@ function set_cron(action) {
 																</td>	
 															</tr>
 															<tr id="ss_v2ray_plugin_support" style="display: none;">
-																<th>v2ray-plugin</th>
+																<th>SIP003 plugin</th>
 																<td>
 																	<select name="ss_node_table_ss_v2ray_plugin" id="ss_node_table_ss_v2ray_plugin" class="input_option" style="width:350px;margin:0px 0px 0px 2px;" onchange="verifyFields(this, 1);">
 																		<option value="0" selected>关闭</option>
-																		<option value="1">启用</option>
+																		<option value="1">v2ray-plugin</option>
+																		<option value="2">simple-obfs</option>																		
 																	</select>
 																</td>
 															</tr>
 															<tr id="ss_v2ray_plugin_opts_support" style="display: none;">
-																<th>v2ray-plugin参数</th>
+																<th>SIP003 plugin参数</th>
 																<td>
 																	<input type="text" name="ss_node_table_ss_v2ray_plugin_opts" id="ss_node_table_ss_v2ray_plugin_opts" placeholder="tls;host=cloudfront.com"  class="input_ss_table" style="width:342px;" maxlength="100" value=""/>
 																</td>
@@ -4017,16 +4005,17 @@ function set_cron(action) {
 													</td>
 												</tr>
 												<tr id="ss_v2ray_plugin">
-													<th width="35%">v2ray-plugin</th>
+													<th width="35%">SIP003 plugin</th>
 													<td>
 														<select id="ss_basic_ss_v2ray_plugin" name="ss_basic_ss_v2ray_plugin" style="width:164px;margin:0px 0px 0px 2px;" class="input_option"  onchange="verifyFields(this, 1);" >
 															<option class="content_input_fd" value="0">关闭</option>
-															<option class="content_input_fd" value="1">启用</option>
+															<option class="content_input_fd" value="1">v2ray-plugin</option>
+															<option class="content_input_fd" value="2">simple-obfs</option>
 														</select>
 													</td>
 												</tr>
 												<tr id="ss_v2ray_plugin_opts">
-													<th width="35%">v2ray-plugin参数</th>
+													<th width="35%">SIP003 plugin参数</th>
 													<td>
 														<input type="text" name="ss_basic_ss_v2ray_plugin_opts" id="ss_basic_ss_v2ray_plugin_opts" placeholder="tls;host=cloudfront.com"  class="input_ss_table" maxlength="100" value=""/>
 													</td>
@@ -4226,7 +4215,7 @@ function set_cron(action) {
 												</tr>
 												<tr id="allowinsecure_basic_tr" style="display: none;">
 													<th width="35%">
-														<a class="hintstyle" href="javascript:void(0);" onclick="openssHint(31)">允许不安全</a>
+														<a class="hintstyle" href="javascript:void(0);" onclick="openssHint(112)">允许不安全</a>
 													</th>
 													<td>
 														<input type="checkbox" id="ss_basic_allowinsecure" name="ss_basic_allowinsecure" onclick="verifyFields(this, 1);" value="0">
@@ -4261,8 +4250,8 @@ function set_cron(action) {
 												<tr id="v2ray_binary_update_tr" style="display: none;">
 													<th width="35%">其它</th>
 													<td>
-														<a type="button" class="ss_btn" style="cursor:pointer" onclick="v2ray_binary_update(2)">更新V2Ray程序</V2R></a>
-														<a type="button" class="ss_btn" style="cursor:pointer" onclick="xray_binary_update(2)">更新XRay程序</V2R></a>
+														<a type="button" class="ss_btn" style="cursor:pointer" onclick="ss_binary_update(1)">更新V2Ray程序</V2R></a>
+														<a type="button" class="ss_btn" style="cursor:pointer" onclick="ss_binary_update(2)">更新XRay程序</V2R></a>
 													</td>
 												</tr>
 											</table>
@@ -4272,11 +4261,11 @@ function set_cron(action) {
 											<table style="margin:-1px 0px 0px 0px;table-layout:fixed;" width="100%" border="1" align="center" cellpadding="4" cellspacing="0" bordercolor="#6b8fa3" class="FormTable1">
 												<tr height="40px">
 													<th style="width:40px;"><a class="hintstyle" href="javascript:void(0);" onclick="openssHint(16)">模式</a></th>
-													<th style="width:120px;"><a class="hintstyle" href="javascript:void(0);" onclick="openssHint(17)">节点名称</a></th>
+													<th style="width:150px;"><a class="hintstyle" href="javascript:void(0);" onclick="openssHint(17)">节点名称</a></th>
 													<th style="width:120px;"><a class="hintstyle" href="javascript:void(0);" onclick="openssHint(18)">服务器地址</a></th>
 													<th style="width:37px;">端口</th>
-													<th style="width:90px;"><a class="hintstyle" href="javascript:void(0);" onclick="openssHint(19)">ping/丢包</a></th>
-													<th style="width:54px;"><a class="hintstyle" href="javascript:void(0);" onclick="openssHint(20)">延迟</a></th>
+													<th style="width:69px;"><a class="hintstyle" href="javascript:void(0);" onclick="openssHint(19)">ping/丢包</a></th>
+													<th style="width:45px;"><a class="hintstyle" href="javascript:void(0);" onclick="openssHint(20)">下行测速</a></th>
 													<th style="width:33px;"><a class="hintstyle" href="javascript:void(0);" onclick="openssHint(21)">编辑</a></th>
 													<th style="width:33px;"><a class="hintstyle" href="javascript:void(0);" onclick="openssHint(22)">删除</a></th>
 													<th style="width:65px;"><a class="hintstyle" href="javascript:void(0);" onclick="openssHint(23)">使用</a></th>
@@ -4288,11 +4277,11 @@ function set_cron(action) {
 												<table id="ss_node_list_table" style="margin:-1px 0px 0px 0px;" width="100%" border="1" align="center" cellpadding="4" cellspacing="0" bordercolor="#6b8fa3" class="FormTable1">
 													<tr id="hide_when_folw" height="40px" style="display: none;">
 														<th style="width:40px;"><a class="hintstyle" href="javascript:void(0);" onclick="openssHint(16)">模式</a></th>
-														<th style="width:120px;"><a class="hintstyle" href="javascript:void(0);" onclick="openssHint(17)">节点名称</a></th>
+														<th style="width:150px;"><a class="hintstyle" href="javascript:void(0);" onclick="openssHint(17)">节点名称</a></th>
 														<th style="width:120px;"><a class="hintstyle" href="javascript:void(0);" onclick="openssHint(18)">服务器地址</a></th>
 														<th style="width:37px;">端口</th>
-														<th style="width:90px;"><a class="hintstyle" href="javascript:void(0);" onclick="openssHint(19)">ping/丢包</a></th>
-														<th style="width:54px;"><a class="hintstyle" href="javascript:void(0);" onclick="openssHint(20)">延迟</a></th>
+														<th style="width:69px;"><a class="hintstyle" href="javascript:void(0);" onclick="openssHint(19)">ping/丢包</a></th>
+														<th style="width:45px;"><a class="hintstyle" href="javascript:void(0);" onclick="openssHint(20)">延迟</a></th>
 														<th style="width:33px;"><a class="hintstyle" href="javascript:void(0);" onclick="openssHint(21)">编辑</a></th>
 														<th style="width:33px;"><a class="hintstyle" href="javascript:void(0);" onclick="openssHint(22)">删除</a></th>
 														<th style="width:65px;"><a class="hintstyle" href="javascript:void(0);" onclick="openssHint(23)">使用</a></th>
@@ -4319,9 +4308,8 @@ function set_cron(action) {
 															</select>
 														<select id="ssconf_basic_test_domain" name="ssconf_basic_test_domain" style="width:160px;margin:0px 0px 0px 2px;" class="input_option">
 															<option class="content_input_fd" value="https://www.google.com.hk/">google.com</option>
-															<option class="content_input_fd" value="https://www.twitter.com/">twitter.com</option>
 															<option class="content_input_fd" value="https://www.facebook.com/">facebook.com</option>
-															<option class="content_input_fd" value="https://www.youtube.com/">youtube.com</option>
+															<option class="content_input_fd" value="http://cachefly.cachefly.net/">v2rayN</option>
 														</select>
 														<input class="ss_btn" style="cursor:pointer;" onClick="remove_test()" type="button" value="清空结果"/>
 													</td>
@@ -4376,6 +4364,7 @@ function set_cron(action) {
 															<option value="7">v2ray_dns</option>
 															<option value="8">直连</option>
 															<option value="9">SmartDNS</option>
+															<option value="10">ChinaDNS-NG</option>
 														</select>
 														<input type="text" class="input_ss_table" id="ss_dns2socks_user" name="ss_dns2socks_user" style="width:160px" placeholder="需端口号如：8.8.8.8:53" value="8.8.8.8:53">
 														<input type="text" class="input_ss_table" id="ss_chinadns1_user" name="ss_chinadns1_user" style="width:160px" placeholder="需端口号如：8.8.8.8:53" value="8.8.8.8:53">

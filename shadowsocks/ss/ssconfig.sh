@@ -214,6 +214,11 @@ kill_process(){
 		echo_date 关闭chinadns1进程...
 		killall chinadns1 >/dev/null 2>&1
 	fi
+	chinadnsNG_process=$(pidof chinadns-ng)
+	if [ -n "$chinadnsNG_process" ]; then
+		echo_date 关闭chinadns-ng进程...
+		killall chinadns-ng >/dev/null 2>&1
+	fi
 	cdns_process=`pidof cdns`
 	if [ -n "$cdns_process" ];then 
 		echo_date 关闭cdns进程...
@@ -351,6 +356,8 @@ ss_arg(){
 	if [ -n "$ss_basic_ss_v2ray_plugin_opts" ];then
 		if [ "$ss_basic_ss_v2ray_plugin" == "1" ];then
 			ARG_V2RAY_PLUGIN="--plugin v2ray-plugin --plugin-opts $ss_basic_ss_v2ray_plugin_opts"
+		elif [ "$ss_basic_ss_v2ray_plugin" == "2" ];then
+			ARG_V2RAY_PLUGIN="--plugin obfs-local --plugin-opts $ss_basic_ss_v2ray_plugin_opts"	
 		else
 			ARG_V2RAY_PLUGIN=""
 		fi
@@ -464,7 +471,10 @@ get_dns_name() {
 			echo "koolgame内置"
 		;;
 		9)
-		echo "SmartDNS"
+			echo "SmartDNS"
+		;;
+		10)
+			echo "ChinaDNS-NG"
 		;;
 	esac
 }
@@ -588,6 +598,14 @@ start_dns(){
 		fi
 	fi
 
+	#start chinadns_ng
+	if [ "$ss_foreign_dns" == "10" ]; then
+		start_sslocal
+		echo_date 开启dns2socks，用于chinadns-ng的国外上游...
+		dns2socks 127.0.0.1:23456 "$ss_chinadns1_user" 127.0.0.1:1055 >/dev/null 2>&1 &
+		</koolshare/ss/rules/gfwlist.conf sed -e '/^server=/d' -e 's/ipset=\/.//g' -e 's/\/gfwlist//g' > /tmp/gfwlist.txt
+		chinadns-ng -N -l ${DNSF_PORT} -c ${CDN}#${DNSC_PORT} -t 127.0.0.1#1055 -g /tmp/gfwlist.txt -m /koolshare/ss/rules/cdn.txt -M >/dev/null 2>&1 &
+	fi
 
 	#start https_dns_proxy
 	if [ "$ss_foreign_dns" == "6" ];then
@@ -728,6 +746,7 @@ create_dnsmasq_conf(){
 	rm -rf /tmp/custom.conf
 	rm -rf /tmp/wblist.conf
 	rm -rf /tmp/gfwlist.conf
+	rm -rf /tmp/gfwlist.txt
 	rm -rf /jffs/configs/dnsmasq.d/custom.conf
 	rm -rf /jffs/configs/dnsmasq.d/wblist.conf
 	rm -rf /jffs/configs/dnsmasq.d/cdn.conf
@@ -852,7 +871,7 @@ create_dnsmasq_conf(){
 		else
 			# 其它情况，均使用国外优先模式，以下区分是否加载cdn.conf
 			# if [ "$ss_foreign_dns" == "2" ] || [ "$ss_foreign_dns" == "5" ] || [ "$ss_foreign_dns" == "9" -a "$ss_dns_china" == "13" ]; then
-			if [ "$ss_foreign_dns" == "2" ] || [ "$ss_foreign_dns" == "5" -a "$ss_dns_china" != "13" ] || [ "$ss_foreign_dns" == "10" ]; then
+			if [ "$ss_foreign_dns" == "2" -o "$ss_foreign_dns" == "5" -a "$ss_dns_china" != "13" -o "$ss_foreign_dns" == "10" ]; then
 				# 因为chinadns1 chinadns2自带国内cdn，所以也不需要cdn.conf
 				echo_date 自动判断dns解析使用国外优先模式...
 				echo_date 国外解析方案【$(get_dns_name $ss_foreign_dns)】自带国内cdn，无需加载cdn.conf，路由器开销小...
@@ -1397,6 +1416,7 @@ create_v2ray_json(){
 				\"response\": null
 				}
 				}"
+			[ -z "$ss_basic_v2ray_network_path" ] && local kcp=$(echo $kcp |sed 's/"seed": "*, //')
 			;;
 		ws)
 			local ws="{
@@ -1413,6 +1433,8 @@ create_v2ray_json(){
 			;;
 		grpc)
 			local grpc="{
+				\"multiMode\": true,
+  				\"idle_timeout\": 13,
 				\"serviceName\": $(get_path $ss_basic_v2ray_serviceName) 
 				}"
 			;;	
@@ -1511,7 +1533,8 @@ create_v2ray_json(){
 					  "tcpSettings": $tcp,
 					  "kcpSettings": $kcp,
 					  "wsSettings": $ws,
-					  "httpSettings": $h2
+					  "httpSettings": $h2,
+					  "grpcSettings": $grpc
 					},
 					"mux": {
 					  "enabled": $(get_function_switch $ss_basic_v2ray_mux_enable),
@@ -1774,6 +1797,7 @@ create_trojango_json(){
 						}"
 		fi
 		[ -z "$(dbus get ss_basic_v2ray_mux_concurrency)" ] && local ss_basic_v2ray_mux_concurrency=8
+#		[ -z "$(dbus get ss_basic_trojan_sni)" ] && [ "$(dbus get ss_basic_server)" != "$ss_basic_v2ray_network_host" ] && local ss_basic_trojan_sni="$ss_basic_v2ray_network_host"
 		echo_date 生成Trojan Go配置文件...
 		 #trojan go
 		 # 3333 for nat  
@@ -1782,9 +1806,9 @@ create_trojango_json(){
 				"run_type": "nat",
 				"local_addr": "0.0.0.0",
 				"local_port": 3333,
-				"remote_addr": "$ss_basic_server",
+				"remote_addr": "$(dbus get ss_basic_server)",
 				"remote_port": $ss_basic_port,
-				"log_level": 1,
+				"log_level": 3,
 				"log_file": "/tmp/trojan-go_log.log",
 				"password": [
 				"$ss_basic_password"
@@ -1794,8 +1818,6 @@ create_trojango_json(){
 				"ssl": {
 					"verify": true,
 					"verify_hostname": true,
-					"cert": "/rom/etc/ssl/certs/ca-certificates.crt",
-					"cipher": "ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES256-SHA:ECDHE-ECDSA-AES128-SHA:ECDHE-RSA-AES128-SHA:ECDHE-RSA-AES256-SHA:DHE-RSA-AES128-SHA:DHE-RSA-AES256-SHA:AES128-SHA:AES256-SHA:DES-CBC3-SHA",
 					"sni": "$ss_basic_trojan_sni",
 					"alpn": [
 					"http/1.1"
@@ -1829,9 +1851,9 @@ create_trojango_json(){
 				"run_type": "client",
 				"local_addr": "127.0.0.1",
 				"local_port": 23456,
-				"remote_addr": "$ss_basic_server",
+				"remote_addr": "$(dbus get ss_basic_server)",
 				"remote_port": $ss_basic_port,
-				"log_level": 1,
+				"log_level": 3,
 				"log_file": "/tmp/trojan-go_log.log",
 				"password": [
 				"$ss_basic_password"
@@ -1841,8 +1863,6 @@ create_trojango_json(){
 				"ssl": {
 					"verify": true,
 					"verify_hostname": true,
-					"cert": "/rom/etc/ssl/certs/ca-certificates.crt",
-					"cipher": "ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES256-SHA:ECDHE-ECDSA-AES128-SHA:ECDHE-RSA-AES128-SHA:ECDHE-RSA-AES256-SHA:DHE-RSA-AES128-SHA:DHE-RSA-AES256-SHA:AES128-SHA:AES256-SHA:DES-CBC3-SHA",
 					"sni": "$ss_basic_trojan_sni",
 					"alpn": [
 					"http/1.1"
